@@ -7,6 +7,7 @@
 
 install.packages("tidytuesdayR")
 install.packages("knitr")
+install.packages("tidyverse")
 
 tuesdata <- tidytuesdayR::tt_load("2025-11-11")
 
@@ -15,28 +16,40 @@ df <- tuesdata$who_tb_data
 
 head(df)
 
+# Are there any years where global TB metrics show unusual spikes or drops?
 factor(df$year)
 
-# Are there any years where global TB metrics show unusual spikes or drops?
-summary(df$c_cdr[!is.na(df$c_cdr)])
-df_summary_year <- aggregate(
-    x = df[7:18],
-    by = list(df$year),
-    FUN = function(x) summary(x)
-)
-print(df_summary_year)
+library("dplyr")
+
+# examine percent_change
+df_percent_change <- df %>%
+    group_by(year) %>%
+    summarise(across(colnames(df[7:18]), mean, na.rm = TRUE)) %>%
+    mutate(across(colnames(df[7:18]), ~ ((.x - lag(.x)) / lag(.x)) * 100))
 
 
-df_summary_year2 <- lapply(df[7:18], df$year, FUN = function(x) summary(x), simplify = TRUE)
-df_sum <- as.data.frame(df_summary_year2)
-colnames(df_sum)
-
-print(df_sum)
-boxplot(list(df[7:18]) ~ df$year)
-boxplot(df$c_cdr ~ df$year)
-library(knitr)
-table <- kable(df_summary_year2, )
-
+# 2019 -> 2020 show a few metrics with a drop c_cdr, c_newinc_100k
 
 # How does TB mortality differ between HIV-positive and HIV-negative populations?
+library(tidyverse)
+df_hiv <- df %>%
+    mutate(e_mort_tbhiv_neg = e_mort_num - e_mort_tbhiv_num) %>%
+    select(year, g_whoregion, e_mort_tbhiv_num, e_mort_tbhiv_neg) %>%
+    group_by(g_whoregion) %>%
+    summarise(across(starts_with("e_mort"), ~ mean(.x, na.rm = TRUE), .names = "{.col}")) %>%
+    pivot_longer(!g_whoregion, names_to = "hiv_status", values_to = "e_mort")
+
+library(ggplot2)
+
+ggplot(df_hiv, aes(x = g_whoregion, y = e_mort, fill = hiv_status)) +
+    geom_col(position = "dodge") +
+    labs(x = "WHO Regions", y = "Mean Estimated number of deaths from TB")
+
+# HIV positive populations
+
 # Which regions show consistent high TB burden across multiple years?
+
+
+# goals tomorrow finish this
+# Create tables showing summary by year
+# create 1 graphical output
